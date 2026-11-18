@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Incucyte Booking</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* layout: status tiles for the 6 positions → two-week Gantt timeline (one lane per position) → upcoming list → admin access matrix */
+  --bg:#eef2f3; --surface:#ffffff; --ink:#15222a; --muted:#5a6a73; --line:#d6dfe3;
+  --accent:#0a6c86; --accent-soft:#d5ecf2; --accent-ink:#ffffff;
+  --other:#a9bcc6; --other-ink:#102029;
+  --hatch:#e3e9ec; --warn:#b0441d; --ok:#2c7a4b;
+  --display:"IBM Plex Sans Condensed","Arial Narrow",sans-serif;
+  --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f171b; --surface:#162228; --ink:#e3ecef; --muted:#93a5ad; --line:#2a3a42;
+    --accent:#39b3d2; --accent-soft:#163947; --accent-ink:#06171d;
+    --other:#4c6370; --other-ink:#eef4f6; --hatch:#1b292f; --warn:#f08a62; --ok:#6cc893;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f171b; --surface:#162228; --ink:#e3ecef; --muted:#93a5ad; --line:#2a3a42;
+  --accent:#39b3d2; --accent-soft:#163947; --accent-ink:#06171d;
+  --other:#4c6370; --other-ink:#eef4f6; --hatch:#1b292f; --warn:#f08a62; --ok:#6cc893;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--body);padding:24px 20px 48px}
+.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:22px}
+h1,h2{font-family:var(--display);font-weight:600;margin:0;text-wrap:balance;letter-spacing:.01em}
+h1{font-size:28px}
+h2{font-size:19px}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+header{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;justify-content:space-between}
+header p{margin:4px 0 0;color:var(--muted);max-width:62ch}
+.me{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:13px}
+.chip{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:2px 10px;font-size:13px}
+.chip.on{background:var(--accent-soft);border-color:var(--accent);color:var(--ink)}
+.banner{background:var(--surface);border:1px solid var(--warn);border-left-width:4px;padding:10px 14px;border-radius:6px;color:var(--ink)}
+.banner[hidden]{display:none}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px}
+.section-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+
+/* status tiles */
+.tiles{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}
+@media (max-width:900px){.tiles{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:480px){.tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:4px;border-top:4px solid var(--ok);min-width:0}
+.tile.busy{border-top-color:var(--accent)}
+.tile.mine{border-top-color:var(--accent)}
+.tile .pn{font-family:var(--display);font-weight:600;font-size:16px}
+.tile .st{font-size:13px;font-weight:600}
+.tile .st.free{color:var(--ok)}
+.tile .st.busy{color:var(--accent)}
+.tile .sub{font-size:12px;color:var(--muted);overflow-wrap:anywhere}
+.tile .lock{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+
+/* buttons & forms */
+button{font:inherit;cursor:pointer;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:6px 12px}
+button:hover{border-color:var(--accent)}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+button.danger{border-color:var(--warn);color:var(--warn)}
+button:disabled{opacity:.5;cursor:not-allowed}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.nav{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+label{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:500}
+input,select,textarea{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:7px 9px}
+textarea{resize:vertical;min-height:60px}
+
+/* timeline */
+.tl-scroll{overflow-x:auto}
+.tl{min-width:780px;display:grid;grid-template-columns:118px 1fr;row-gap:6px}
+.tl-days{display:grid;grid-template-columns:repeat(14,1fr);font-size:12px;color:var(--muted)}
+.tl-days div{padding:2px 4px;border-left:1px solid var(--line)}
+.tl-days div.wk{border-left:2px solid var(--muted)}
+.tl-days div.today{color:var(--accent);font-weight:600}
+.tl-days b{display:block;color:var(--ink);font-weight:600}
+.tl-days div.today b{color:var(--accent)}
+.lane-label{display:flex;flex-direction:column;justify-content:center;font-family:var(--display);font-weight:600;font-size:15px;padding-right:8px}
+.lane-label small{font-family:var(--body);font-weight:400;font-size:11px;color:var(--muted)}
+.track{position:relative;height:46px;border-radius:6px;background:
+  repeating-linear-gradient(90deg,transparent 0,transparent calc(100%/14 - 1px),var(--line) calc(100%/14 - 1px),var(--line) calc(100%/14)),var(--bg);
+  cursor:copy;border:1px solid var(--line)}
+.track.locked{cursor:not-allowed;background:
+  repeating-linear-gradient(135deg,var(--hatch) 0 6px,transparent 6px 12px),var(--bg)}
+.track.readonly{cursor:default}
+.bar{position:absolute;top:5px;bottom:5px;border-radius:5px;background:var(--other);color:var(--other-ink);padding:3px 7px;font-size:12px;line-height:1.25;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;cursor:pointer;border:1px solid rgba(0,0,0,.08);text-align:left}
+.bar.mine{background:var(--accent);color:var(--accent-ink)}
+.bar b{font-weight:600}
+.bar span{display:block;opacity:.85;overflow:hidden;text-overflow:ellipsis}
+.now{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--warn);pointer-events:none;border-radius:2px}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:12px;color:var(--muted);margin-top:12px}
+.sw{display:inline-block;width:14px;height:10px;border-radius:3px;vertical-align:-1px;margin-right:5px}
+
+/* tables */
+.tbl-scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:left;font-weight:600;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;padding:6px 8px;border-bottom:1px solid var(--line)}
+td{padding:8px;border-bottom:1px solid var(--line);vertical-align:middle}
+td.c,th.c{text-align:center}
+.pbadge{display:inline-block;min-width:28px;text-align:center;font-family:var(--mono);font-size:12px;background:var(--accent-soft);border-radius:4px;padding:1px 6px}
+.empty{color:var(--muted);font-size:14px;padding:8px 0}
+
+/* admin */
+.search{position:relative;max-width:420px}
+.hits{position:absolute;z-index:5;left:0;right:0;top:100%;background:var(--surface);border:1px solid var(--line);border-radius:6px;margin-top:4px;max-height:240px;overflow:auto;box-shadow:0 8px 24px rgba(0,0,0,.12)}
+.hits button{display:block;width:100%;text-align:left;border:0;border-radius:0;border-bottom:1px solid var(--line)}
+.hits[hidden]{display:none}
+input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
+
+/* dialogs */
+dialog{border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);padding:20px;width:min(460px,calc(100vw - 32px))}
+dialog::backdrop{background:rgba(8,16,20,.45)}
+.form{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form .full{grid-column:1/-1}
+@media (max-width:480px){.form{grid-template-columns:1fr}}
+.actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px;flex-wrap:wrap}
+.msg{font-size:13px;margin-top:10px;min-height:1.2em}
+.msg.err{color:var(--warn)}
+.msg.ok{color:var(--ok)}
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:8px;font-size:14px;z-index:20;max-width:calc(100vw - 32px)}
+.toast[hidden]{display:none}
+dl{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:12px 0 0;font-size:14px}
+dt{color:var(--muted)}
+dd{margin:0;overflow-wrap:anywhere}
+@media (prefers-reduced-motion:no-preference){.bar{transition:filter .15s}.bar:hover{filter:brightness(1.08)}}
+
+.auth{max-width:400px;margin:40px auto 0;display:flex;flex-direction:column;gap:14px}
+.auth form{display:flex;flex-direction:column;gap:12px}
+.tabs{display:flex;gap:6px}
+.tabs button[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent)}
+.topbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px}
+[hidden]{display:none !important}
+/* tray: top-down view, back row on top, front row (door) at the bottom */
+.tray-wrap{max-width:620px;margin:0 auto;background:var(--hatch);border:2px solid var(--line);border-radius:14px;padding:10px 14px}
+.tray-edge{text-align:center;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);padding:2px 0 8px}
+.tray-edge.front{padding:8px 0 2px;font-weight:600;color:var(--ink);letter-spacing:.14em}
+.tray{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.slot{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px;min-width:0}
+.slot:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.slot:hover{border-color:var(--accent)}
+.slot.locked{cursor:not-allowed}
+.slot-top{display:flex;justify-content:space-between;align-items:baseline;gap:6px}
+.slot-top .pn{font-family:var(--display);font-weight:600;font-size:16px}
+.slot-top .st{font-size:12px;font-weight:600}
+.st.free{color:var(--ok)} .st.busy{color:var(--accent)}
+.plate{--well:var(--ok);position:relative;aspect-ratio:127.8/85.5;border-radius:6px 6px 6px 14px;border:2px solid var(--well);padding:5% 4% 4% 7%;background:var(--bg)}
+.plate .wells{width:100%;height:100%;background-image:radial-gradient(circle,var(--well) 0 34%,transparent 38%);background-size:calc(100%/12) calc(100%/8);opacity:.55}
+.slot.busy .plate{--well:var(--accent)}
+.slot.busy .plate .wells{opacity:.95}
+.slot.locked .plate{--well:var(--muted);background:repeating-linear-gradient(135deg,var(--hatch) 0 6px,var(--bg) 6px 12px)}
+.slot.locked .plate .wells{opacity:.35}
+.plate .a1{position:absolute;left:3px;top:1px;font:500 9px var(--mono);color:var(--muted)}
+.slot .sub{font-size:12px;color:var(--muted);overflow-wrap:anywhere;min-height:2.4em}
+@media (max-width:560px){.tray{gap:8px}.slot{padding:6px}.slot .sub{font-size:11px}.slot-top{flex-direction:column;gap:0}}
+.pill{font-size:11px;text-transform:uppercase;letter-spacing:.05em;border-radius:999px;padding:1px 8px;border:1px solid var(--warn);color:var(--warn)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Incucyte Booking</h1>
+      <p>Six plate positions, one 96-well plate each. Click an open stretch of a lane to book it. Overlapping bookings on the same position are refused.</p>
+    </div>
+    <div class="topbar" id="topbar" hidden>
+      <span id="whoami" class="muted"></span>
+      <button type="button" id="signOut">Sign out</button>
+    </div>
+  </header>
+
+  <div class="banner" id="banner" hidden></div>
+
+  <!-- Sign in / create account -->
+  <section class="card auth" id="authView" hidden aria-labelledby="au-h">
+    <h2 id="au-h">Sign in to book</h2>
+    <div class="tabs" role="group" aria-label="Choose">
+      <button type="button" id="tabIn" aria-pressed="true">Sign in</button>
+      <button type="button" id="tabUp" aria-pressed="false">Create account</button>
+    </div>
+    <form id="authForm">
+      <label for="aName" id="aNameWrap" hidden>Full name
+        <input id="aName" autocomplete="name" maxlength="80" placeholder="So your lab knows who booked">
+      </label>
+      <label for="aEmail">Email
+        <input id="aEmail" type="email" autocomplete="email" required>
+      </label>
+      <label for="aPass">Password
+        <input id="aPass" type="password" autocomplete="current-password" minlength="8" required>
+      </label>
+      <button type="submit" class="primary" id="aGo">Sign in</button>
+      <button type="button" id="forgot" style="align-self:flex-start;border:0;padding:0;background:none;color:var(--accent);text-decoration:underline">Forgot password?</button>
+      <div class="msg" id="aMsg" role="status"></div>
+    </form>
+    <p class="muted" style="font-size:13px;margin:0">New accounts can't book until a lab admin approves them and picks their positions.</p>
+  </section>
+
+  <!-- Waiting for approval -->
+  <section class="card" id="pendingView" hidden aria-labelledby="pe-h">
+    <h2 id="pe-h">Waiting for approval</h2>
+    <p>Your account is set up. A lab admin now needs to choose which Incucyte positions you can book. Let them know you've signed up; this page updates by itself once they do.</p>
+  </section>
+
+  <!-- Main app -->
+  <div id="appView" hidden style="display:flex;flex-direction:column;gap:22px">
+    <div class="me" id="me"></div>
+
+    <section class="card" aria-labelledby="now-h">
+      <div class="section-head"><h2 id="now-h">Tray right now</h2><span class="muted mono" id="nowStamp"></span></div>
+      <div class="tray-wrap">
+        <div class="tray-edge">Back of instrument</div>
+        <div class="tray" id="tiles"></div>
+        <div class="tray-edge front">▼ Front (door side) ▼</div>
+      </div>
+      <div class="legend">
+        <span><i class="sw" style="background:var(--ok)"></i>Free</span>
+        <span><i class="sw" style="background:var(--accent)"></i>In use</span>
+        <span><i class="sw" style="background:repeating-linear-gradient(135deg,var(--muted) 0 2px,transparent 2px 4px)"></i>No access for you</span>
+        <span>Click a plate to book that position.</span>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="tl-h">
+      <div class="section-head">
+        <h2 id="tl-h">Schedule</h2>
+        <div class="nav">
+          <button type="button" id="prev" aria-label="Previous week">← Week</button>
+          <button type="button" id="today">This week</button>
+          <button type="button" id="next" aria-label="Next week">Week →</button>
+          <span class="mono muted" id="range"></span>
+          <button type="button" class="primary" id="newBtn">New booking</button>
+        </div>
+      </div>
+      <div class="tl-scroll"><div class="tl" id="tl"></div></div>
+      <div class="legend">
+        <span><i class="sw" style="background:var(--accent)"></i>Your bookings</span>
+        <span><i class="sw" style="background:var(--other)"></i>Other people's bookings</span>
+        <span><i class="sw" style="background:repeating-linear-gradient(135deg,var(--muted) 0 2px,transparent 2px 4px)"></i>No access for you</span>
+        <span><i class="sw" style="background:var(--warn);width:3px"></i>Now</span>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="up-h">
+      <div class="section-head"><h2 id="up-h">Upcoming and running</h2></div>
+      <div class="tbl-scroll" id="upcoming"></div>
+    </section>
+
+    <section class="card" id="adminCard" hidden aria-labelledby="ad-h">
+      <div class="section-head">
+        <h2 id="ad-h">Who can book which positions</h2>
+        <span class="muted" style="font-size:13px">New sign-ups appear here. Admins can book all six. <button type="button" id="cleanup" style="margin-left:6px">Remove bookings older than 90 days</button></span>
+      </div>
+      <div class="tbl-scroll" id="accessTbl"></div>
+    </section>
+  </div>
+</div>
+
+<dialog id="bookDlg" aria-labelledby="bk-h">
+  <form id="bookForm" method="dialog">
+    <h2 id="bk-h">New booking</h2>
+    <div class="form" style="margin-top:14px">
+      <label class="full" for="fPos">Position
+        <select id="fPos" required></select>
+      </label>
+      <label class="full" for="fTitle">Experiment
+        <input id="fTitle" required maxlength="80" placeholder="e.g. HeLa scratch wound, 10× phase">
+      </label>
+      <label for="fStart">Start
+        <input id="fStart" type="datetime-local" step="900" required>
+      </label>
+      <label for="fEnd">End
+        <input id="fEnd" type="datetime-local" step="900" required>
+      </label>
+      <label class="full" for="fNotes">Notes (optional)
+        <textarea id="fNotes" maxlength="400" placeholder="Plate type, scan interval, contact if something goes wrong"></textarea>
+      </label>
+    </div>
+    <div class="muted mono" id="fDur" style="font-size:13px;margin-top:8px"></div>
+    <div class="msg" id="fMsg" role="status"></div>
+    <div class="actions">
+      <button type="button" id="fCancel">Close</button>
+      <button type="submit" class="primary" id="fSave">Book position</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="infoDlg" aria-labelledby="in-h">
+  <h2 id="in-h"></h2>
+  <dl id="inList"></dl>
+  <div class="msg" id="inMsg" role="status"></div>
+  <div class="actions">
+    <button type="button" id="inDel" class="danger" hidden>Cancel this booking</button>
+    <button type="button" id="inClose">Close</button>
+  </div>
+</dialog>
+
+<div class="toast" id="toast" hidden role="status"></div>
+
+<script type="module">
+/* ===== SETUP: paste your Firebase web app config here (see README step 3) ===== */
+const firebaseConfig = {
+  apiKey: "AIzaSyC-0MHJ5Mqb0Ovb4vTXZ2ExH2vCtEcqPIs",
+  authDomain: "incucyte-booking.firebaseapp.com",
+  projectId: "incucyte-booking",
+  storageBucket: "incucyte-booking.firebasestorage.app",
+  messagingSenderId: "341840392994",
+  appId: "1:341840392994:web:8f7dc86eb5fa8a3d64ab7b"
+};
+/* ============================================================================== */
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword,
+         sendPasswordResetEmail, signOut, updateProfile } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, onSnapshot, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const POS=[1,2,3,4,5,6];
+/* Tray drawing order, top-down view, 2 across × 3 deep, read like a page from the BACK row down to the FRONT row:
+   back row 5-6, middle row 3-4, front row 1-2 (position 1 = front left).
+   Change this if your instrument numbers its positions differently. */
+const TRAY_ORDER=[5,6, 3,4, 1,2];
+const DAY=86400000, MAX_LEN=60*DAY;
+const S={user:null,me:null,profiles:{},bookings:[],winStart:startOfWeek(Date.now())};
+const $=id=>document.getElementById(id);
+
+function startOfWeek(t){const d=new Date(t);d.setHours(0,0,0,0);d.setDate(d.getDate()-((d.getDay()+6)%7));return d.getTime();}
+function addDays(t,n){const d=new Date(t);d.setDate(d.getDate()+n);return d.getTime();}
+const fmtDT=new Intl.DateTimeFormat(undefined,{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+const fmtD=new Intl.DateTimeFormat(undefined,{day:'numeric',month:'short'});
+const fmtWd=new Intl.DateTimeFormat(undefined,{weekday:'short'});
+function dt(t){return fmtDT.format(new Date(t));}
+function dur(ms){const h=Math.round(ms/3600000);const d=Math.floor(h/24),r=h%24;return ((d?d+' d ':'')+(r||!d?r+' h':'')).trim();}
+function toLocalInput(t){const d=new Date(t);const p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'T'+p(d.getHours())+':'+p(d.getMinutes());}
+function el(tag,props,kids){const e=document.createElement(tag);if(props)for(const k in props){const v=props[k];if(k==='class')e.className=v;else if(k==='text')e.textContent=v;else if(k.startsWith('on'))e.addEventListener(k.slice(2),v);else if(v!==undefined&&v!==null&&v!==false)e.setAttribute(k,v===true?'':v);}(kids||[]).forEach(c=>c!=null&&e.append(c));return e;}
+const overlaps=(a,b)=>a.start<b.end&&b.start<a.end;
+let toastT;function toast(msg){const t=$('toast');t.textContent=msg;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,3500);}
+function banner(msg){const b=$('banner');if(msg){b.textContent=msg;b.hidden=false;}else b.hidden=true;}
+const myId=()=>S.user&&S.user.uid;
+const isAdmin=()=>!!(S.me&&S.me.isAdmin===true);
+const isMember=()=>!!S.me&&(S.me.isAdmin===true||(S.me.positions||[]).length>0);
+function allowed(){if(!S.me)return[];if(isAdmin())return POS.slice();return (S.me.positions||[]).filter(p=>POS.includes(p)).sort((a,b)=>a-b);}
+function name(id){const p=S.profiles[id]||(id===myId()?S.me:null);return p?(p.name||p.email):'Someone';}
+function errText(e){const c=e&&e.code||'';
+  if(c.includes('invalid-credential')||c.includes('wrong-password')||c.includes('user-not-found'))return'That email and password don’t match.';
+  if(c.includes('email-already-in-use'))return'There’s already an account with that email. Sign in instead.';
+  if(c.includes('weak-password'))return'Use a password of at least 8 characters.';
+  if(c.includes('invalid-email'))return'That email address doesn’t look right.';
+  if(c.includes('too-many-requests'))return'Too many attempts. Wait a few minutes and try again.';
+  if(c.includes('permission-denied'))return'You don’t have permission to do that.';
+  if(c.includes('unavailable'))return'Can’t reach the database. Check your connection.';
+  return (e&&e.message)||'Something went wrong. Try again.';}
+
+/* ---------- Firebase ---------- */
+if(Object.values(firebaseConfig).some(v=>String(v).startsWith('PASTE'))){
+  banner('Setup isn’t finished: open index.html and paste your Firebase config at the top of the script (see README step 3).');
+  throw new Error('Firebase config missing');
+}
+const app=initializeApp(firebaseConfig);
+const auth=getAuth(app);
+const db=getFirestore(app);
+
+/* ---------- views ---------- */
+function show(view){
+  $('authView').hidden=view!=='auth';$('pendingView').hidden=view!=='pending';$('appView').hidden=view!=='app';
+  $('topbar').hidden=view==='auth'||view==='none';
+}
+function route(){
+  if(!S.user){show('auth');return;}
+  $('whoami').textContent='Signed in as '+(S.me?(S.me.name||S.me.email):S.user.email);
+  if(!S.me)return;
+  if(!isMember()){show('pending');return;}
+  show('app');render();
+}
+
+/* ---------- auth ---------- */
+let mode='in';
+function setMode(m){mode=m;$('tabIn').setAttribute('aria-pressed',m==='in');$('tabUp').setAttribute('aria-pressed',m==='up');
+  $('aNameWrap').hidden=m!=='up';$('aGo').textContent=m==='up'?'Create account':'Sign in';$('forgot').hidden=m==='up';
+  $('aPass').autocomplete=m==='up'?'new-password':'current-password';$('aMsg').textContent='';}
+$('tabIn').addEventListener('click',()=>setMode('in'));
+$('tabUp').addEventListener('click',()=>setMode('up'));
+let pendingName='';
+$('authForm').addEventListener('submit',async ev=>{
+  ev.preventDefault();
+  const email=$('aEmail').value.trim(),password=$('aPass').value,nm=$('aName').value.trim();
+  const m=$('aMsg');m.className='msg';
+  if(mode==='up'&&!nm){m.className='msg err';m.textContent='Add your name so others know who booked.';return;}
+  m.textContent=mode==='up'?'Creating account…':'Signing in…';$('aGo').disabled=true;
+  try{
+    if(mode==='up'){pendingName=nm;const cred=await createUserWithEmailAndPassword(auth,email,password);await updateProfile(cred.user,{displayName:nm});}
+    else await signInWithEmailAndPassword(auth,email,password);
+    m.textContent='';
+  }catch(e){m.className='msg err';m.textContent=errText(e);}
+  finally{$('aGo').disabled=false;}
+});
+$('forgot').addEventListener('click',async()=>{
+  const email=$('aEmail').value.trim();const m=$('aMsg');
+  if(!email){m.className='msg err';m.textContent='Type your email above first, then click "Forgot password?" again.';return;}
+  try{await sendPasswordResetEmail(auth,email);m.className='msg ok';m.textContent='If that address has an account, a reset link is on its way. Check your spam folder too.';}
+  catch(e){m.className='msg err';m.textContent=errText(e);}
+});
+$('signOut').addEventListener('click',()=>signOut(auth));
+
+/* ---------- live data ---------- */
+let unMe=null,unUsers=null,unSched=null;
+function stopShared(){if(unUsers){unUsers();unUsers=null;}if(unSched){unSched();unSched=null;}}
+function startShared(){
+  if(unSched)return;
+  const timer=setTimeout(()=>banner('Can’t reach the schedule yet. What you see may be out of date.'),10000);
+  unSched=onSnapshot(collection(db,'schedules'),snap=>{
+    clearTimeout(timer);banner('');
+    const out=[];
+    snap.forEach(d=>{const p=Number(d.id);(d.data().items||[]).forEach(i=>out.push({id:i.id,position:p,title:i.title,notes:i.notes||'',start:i.s,end:i.e,userId:i.uid}));});
+    S.bookings=out.filter(b=>POS.includes(b.position));route();
+  },e=>{clearTimeout(timer);banner('The schedule stopped updating: '+errText(e)+' Reload the page to reconnect.');});
+  unUsers=onSnapshot(collection(db,'users'),snap=>{S.profiles={};snap.forEach(d=>S.profiles[d.id]=d.data());route();},()=>{});
+}
+onAuthStateChanged(auth,async user=>{
+  if(unMe){unMe();unMe=null;}stopShared();
+  S.user=user;S.me=null;S.profiles={};S.bookings=[];
+  if(!user){route();return;}
+  route();
+  try{
+    const ref=doc(db,'users',user.uid);
+    const snap=await getDoc(ref);
+    if(!snap.exists()){
+      await setDoc(ref,{name:(pendingName||user.displayName||user.email.split('@')[0]).slice(0,80),email:user.email,isAdmin:false,positions:[],created:Date.now()});
+    }
+    unMe=onSnapshot(ref,d=>{
+      S.me=d.exists()?d.data():null;
+      if(isMember())startShared();else stopShared();
+      route();
+    },e=>banner('Couldn’t load your account: '+errText(e)));
+  }catch(e){banner('Couldn’t set up your account: '+errText(e));}
+});
+
+/* ---------- rendering ---------- */
+function render(){renderMe();renderTiles();renderTimeline();renderUpcoming();renderAdmin();}
+function renderMe(){
+  const box=$('me');box.replaceChildren();const a=allowed();
+  box.append(el('span',{class:'muted',text:isAdmin()?'You can book (admin):':'You can book:'}));
+  POS.forEach(p=>box.append(el('span',{class:'chip'+(a.includes(p)?' on':''),text:'P'+p})));
+}
+function renderTiles(){
+  const now=Date.now();$('nowStamp').textContent=dt(now);
+  const a=allowed();const box=$('tiles');box.replaceChildren();
+  TRAY_ORDER.forEach(p=>{
+    const list=S.bookings.filter(b=>b.position===p).sort((x,y)=>x.start-y.start);
+    const cur=list.find(b=>b.start<=now&&b.end>now);const nxt=list.find(b=>b.start>now);
+    const locked=!a.includes(p);
+    const sub=cur?name(cur.userId)+' · until '+dt(cur.end):(nxt?'Next: '+dt(nxt.start):'Nothing booked ahead');
+    box.append(el('button',{type:'button',class:'slot'+(cur?' busy':'')+(locked?' locked':''),
+      'aria-label':'Position '+p+', '+(cur?'in use':'free')+(locked?', no access for you':'')+'. '+sub,
+      onclick:()=>{if(cur){openInfo(cur);return;}if(locked){toast('You don’t have access to position '+p+'.');return;}
+        const s=Math.ceil(Date.now()/3600000)*3600000;openBook(p,s,s+2*DAY);}},[
+      el('div',{class:'slot-top'},[el('span',{class:'pn',text:'Position '+p}),el('span',{class:'st '+(cur?'busy':'free'),text:cur?'In use':'Free'})]),
+      el('div',{class:'plate'},[el('span',{class:'a1',text:'A1'}),el('div',{class:'wells'})]),
+      el('div',{class:'sub',text:(locked?'No access · ':'')+sub})]));
+  });
+}
+function renderTimeline(){
+  const ws=S.winStart,we=addDays(ws,14),span=we-ws,now=Date.now();
+  $('range').textContent=fmtD.format(new Date(ws))+' – '+fmtD.format(new Date(addDays(ws,13)));
+  const tl=$('tl');tl.replaceChildren();const a=allowed();
+  tl.append(el('div'));
+  const days=el('div',{class:'tl-days'});const t0=new Date(now);t0.setHours(0,0,0,0);
+  for(let i=0;i<14;i++){const d=addDays(ws,i);
+    days.append(el('div',{class:(i===7?'wk ':'')+(d===t0.getTime()?'today':'')},[el('b',{text:fmtWd.format(new Date(d))}),document.createTextNode(fmtD.format(new Date(d)))]));}
+  tl.append(days);
+  POS.forEach(p=>{
+    const locked=!a.includes(p);
+    const label=el('div',{class:'lane-label'},[document.createTextNode('Position '+p),el('small',{text:locked?'no access':'click to book'})]);
+    const track=el('div',{class:'track'+(locked?' locked':''),role:'group','aria-label':'Position '+p+' schedule'});
+    track.addEventListener('click',ev=>{
+      if(ev.target!==track)return;
+      if(locked){toast('You don’t have access to position '+p+'.');return;}
+      const r=track.getBoundingClientRect();const d=new Date(ws+(ev.clientX-r.left)/r.width*span);d.setHours(9,0,0,0);
+      let start=d.getTime();if(start<now)start=Math.ceil(now/900000)*900000;
+      openBook(p,start,start+2*DAY);
+    });
+    S.bookings.filter(b=>b.position===p&&b.start<we&&b.end>ws).forEach(b=>{
+      const l=Math.max(0,(b.start-ws)/span*100),r=Math.min(100,(b.end-ws)/span*100);
+      track.append(el('button',{type:'button',class:'bar'+(b.userId===myId()?' mine':''),style:'left:'+l+'%;width:calc('+(r-l)+'% - 2px)',
+        title:b.title+' — '+name(b.userId)+'\n'+dt(b.start)+' → '+dt(b.end),onclick:e=>{e.stopPropagation();openInfo(b);}},
+        [el('b',{text:b.title}),el('span',{text:name(b.userId)})]));
+    });
+    if(now>=ws&&now<we)track.append(el('div',{class:'now',style:'left:'+((now-ws)/span*100)+'%'}));
+    tl.append(label,track);
+  });
+}
+function renderUpcoming(){
+  const now=Date.now();const list=S.bookings.filter(b=>b.end>now).sort((x,y)=>x.start-y.start);
+  const box=$('upcoming');box.replaceChildren();
+  if(!list.length){box.append(el('div',{class:'empty',text:'No bookings yet. Click a plate or a lane in the schedule to make the first one.'}));return;}
+  const tb=el('tbody');
+  list.forEach(b=>{const can=b.userId===myId()||isAdmin();
+    tb.append(el('tr',null,[
+      el('td',null,[el('span',{class:'pbadge',text:'P'+b.position})]),
+      el('td',null,[el('b',{text:b.title}),b.start<=now?el('span',{class:'muted',text:' · running'}):null]),
+      el('td',{text:name(b.userId)}),el('td',{class:'mono',text:dt(b.start)}),el('td',{class:'mono',text:dt(b.end)}),
+      el('td',{class:'mono muted',text:dur(b.end-b.start)}),
+      el('td',null,[el('button',{type:'button',text:can?'Details / cancel':'Details',onclick:()=>openInfo(b)})])]));});
+  box.append(el('table',null,[el('thead',null,[el('tr',null,['Pos','Experiment','Booked by','Start','End','Length',''].map(h=>el('th',{text:h})))]),tb]));
+}
+function renderAdmin(){
+  const card=$('adminCard');if(!isAdmin()){card.hidden=true;return;}card.hidden=false;
+  const box=$('accessTbl');box.replaceChildren();
+  const rows=Object.entries(S.profiles).map(([id,p])=>({id,...p})).sort((x,y)=>{
+    const px=!x.isAdmin&&!(x.positions||[]).length,py=!y.isAdmin&&!(y.positions||[]).length;
+    if(px!==py)return px?-1:1;return (x.name||x.email||'').localeCompare(y.name||y.email||'');});
+  const tb=el('tbody');
+  rows.forEach(p=>{
+    const cur=p.positions||[];const pending=!p.isAdmin&&!cur.length;const self=p.id===myId();
+    const row=el('tr');
+    row.append(el('td',null,[el('b',{text:p.name||'(no name)'}),document.createTextNode(' '),pending?el('span',{class:'pill',text:'new'}):null,el('div',{class:'muted',style:'font-size:12px',text:p.email||''})]));
+    POS.forEach(n=>{const cb=el('input',{type:'checkbox',id:'acc-'+p.id+'-'+n,'aria-label':(p.name||p.email)+' position '+n});
+      cb.checked=!!p.isAdmin||cur.includes(n);cb.disabled=!!p.isAdmin;
+      cb.addEventListener('change',()=>saveProfile(p.id,{positions:POS.filter(q=>q===n?cb.checked:cur.includes(q))},row));
+      row.append(el('td',{class:'c'},[cb]));});
+    const ad=el('input',{type:'checkbox',id:'adm-'+p.id,'aria-label':(p.name||p.email)+' is admin'});
+    ad.checked=!!p.isAdmin;ad.disabled=self;
+    ad.addEventListener('change',()=>saveProfile(p.id,{isAdmin:ad.checked},row));
+    row.append(el('td',{class:'c'},[ad]));
+    row.append(el('td',null,[el('button',{type:'button',text:'All',disabled:p.isAdmin?true:null,onclick:()=>saveProfile(p.id,{positions:POS.slice()},row)}),document.createTextNode(' '),
+      el('button',{type:'button',text:'None',disabled:p.isAdmin?true:null,onclick:()=>saveProfile(p.id,{positions:[]},row)})]));
+    tb.append(row);
+  });
+  box.append(el('table',null,[el('thead',null,[el('tr',null,[el('th',{text:'Person'}),...POS.map(n=>el('th',{class:'c',text:'P'+n})),el('th',{class:'c',text:'Admin'}),el('th')])]),tb]));
+}
+async function saveProfile(id,patch,row){
+  row.querySelectorAll('input,button').forEach(x=>x.disabled=true);
+  try{await updateDoc(doc(db,'users',id),patch);}catch(e){toast('Couldn’t save: '+errText(e));render();}
+}
+$('cleanup').addEventListener('click',async()=>{
+  const btn=$('cleanup');btn.disabled=true;const cutoff=Date.now()-90*DAY;let n=0;
+  try{
+    for(const p of POS){
+      await runTransaction(db,async tx=>{
+        const ref=doc(db,'schedules',String(p));const s=await tx.get(ref);if(!s.exists())return;
+        const items=s.data().items||[];const keep=items.filter(i=>i.e>=cutoff);
+        if(keep.length!==items.length){n+=items.length-keep.length;tx.update(ref,{items:keep});}
+      });
+    }
+    toast(n?'Removed '+n+' old booking'+(n===1?'':'s')+'.':'Nothing older than 90 days.');
+  }catch(e){toast('Couldn’t clean up: '+errText(e));}
+  btn.disabled=false;
+});
+
+/* ---------- booking ---------- */
+function openBook(pos,start,end){
+  const a=allowed();if(!a.length)return;
+  $('fPos').replaceChildren(...a.map(p=>el('option',{value:p,text:'Position '+p})));
+  $('fPos').value=String(a.includes(pos)?pos:a[0]);
+  $('fStart').value=toLocalInput(start);$('fEnd').value=toLocalInput(end);
+  $('fTitle').value='';$('fNotes').value='';$('fMsg').textContent='';$('fMsg').className='msg';
+  $('fSave').disabled=false;updDur();$('bookDlg').showModal();$('fTitle').focus();
+}
+function updDur(){const s=new Date($('fStart').value).getTime(),e=new Date($('fEnd').value).getTime();$('fDur').textContent=(s&&e&&e>s)?'Length: '+dur(e-s):'';}
+$('fStart').addEventListener('input',updDur);$('fEnd').addEventListener('input',updDur);
+$('fCancel').addEventListener('click',()=>$('bookDlg').close());
+$('bookForm').addEventListener('submit',async ev=>{
+  ev.preventDefault();
+  const m=$('fMsg');const say=(t,c)=>{m.textContent=t;m.className='msg '+(c||'');};
+  const slot=Number($('fPos').value),title=$('fTitle').value.trim(),notes=$('fNotes').value.trim();
+  const start=new Date($('fStart').value).getTime(),end=new Date($('fEnd').value).getTime();
+  if(!title)return say('Give the experiment a name.','err');
+  if(!(start&&end))return say('Pick a start and an end.','err');
+  if(end<=start)return say('The end has to be after the start.','err');
+  if(end<=Date.now())return say('That time is already over. Pick a time in the future.','err');
+  if(end-start>MAX_LEN)return say('Bookings can be at most 60 days long.','err');
+  if(!allowed().includes(slot))return say('You don’t have access to position '+slot+'.','err');
+  $('fSave').disabled=true;say('Booking…');
+  const item={id:Math.random().toString(36).slice(2,12)+Date.now().toString(36),s:start,e:end,uid:myId(),title,notes,created:Date.now()};
+  try{
+    // Transaction: read the latest schedule for this position, refuse any overlap, then save.
+    // If two people book at the same moment, Firebase re-runs one of them against the updated schedule.
+    await runTransaction(db,async tx=>{
+      const ref=doc(db,'schedules',String(slot));const snap=await tx.get(ref);
+      const items=snap.exists()?(snap.data().items||[]):[];
+      const clash=items.find(i=>i.s<end&&start<i.e);
+      if(clash){const err=new Error('clash');err.clash=clash;throw err;}
+      if(snap.exists())tx.update(ref,{items:[...items,item]});else tx.set(ref,{items:[item]});
+    });
+    say('Booked.','ok');toast('Position '+slot+' booked: '+dt(start)+' → '+dt(end));setTimeout(()=>$('bookDlg').close(),400);
+  }catch(e){
+    $('fSave').disabled=false;
+    if(e&&e.clash)say('Position '+slot+' is already booked by '+name(e.clash.uid)+' from '+dt(e.clash.s)+' to '+dt(e.clash.e)+'. Pick another time or position.','err');
+    else say('Couldn’t save the booking: '+errText(e),'err');
+  }
+});
+
+/* ---------- details / cancel ---------- */
+let infoB=null,armed=false;
+function openInfo(b){
+  infoB=b;armed=false;$('in-h').textContent=b.title;
+  const dl=$('inList');dl.replaceChildren();
+  [['Position','Position '+b.position],['Booked by',name(b.userId)],['Start',dt(b.start)],['End',dt(b.end)],['Length',dur(b.end-b.start)],['Notes',b.notes||'—']]
+    .forEach(([k,v])=>dl.append(el('dt',{text:k}),el('dd',{text:v})));
+  const del=$('inDel');del.hidden=!(b.userId===myId()||isAdmin());del.disabled=false;del.textContent='Cancel this booking';
+  $('inMsg').textContent='';$('inMsg').className='msg';$('infoDlg').showModal();
+}
+$('inClose').addEventListener('click',()=>$('infoDlg').close());
+$('inDel').addEventListener('click',async()=>{
+  const del=$('inDel');
+  if(!armed){armed=true;del.textContent='Yes, cancel it';$('inMsg').textContent='This frees the position for others.';return;}
+  del.disabled=true;
+  try{
+    await runTransaction(db,async tx=>{
+      const ref=doc(db,'schedules',String(infoB.position));const snap=await tx.get(ref);if(!snap.exists())return;
+      const items=snap.data().items||[];const keep=items.filter(i=>i.id!==infoB.id);
+      if(keep.length!==items.length)tx.update(ref,{items:keep});
+    });
+    $('infoDlg').close();toast('Booking cancelled.');
+  }catch(e){del.disabled=false;$('inMsg').className='msg err';$('inMsg').textContent='Couldn’t cancel: '+errText(e);}
+});
+
+/* ---------- nav ---------- */
+$('prev').addEventListener('click',()=>{S.winStart=addDays(S.winStart,-7);renderTimeline();});
+$('next').addEventListener('click',()=>{S.winStart=addDays(S.winStart,7);renderTimeline();});
+$('today').addEventListener('click',()=>{S.winStart=startOfWeek(Date.now());renderTimeline();});
+$('newBtn').addEventListener('click',()=>{const s=Math.ceil(Date.now()/3600000)*3600000;openBook(allowed()[0],s,s+2*DAY);});
+setInterval(()=>{if(!$('appView').hidden){renderTiles();renderTimeline();renderUpcoming();}},60000);
+</script>
+</body>
+</html>
